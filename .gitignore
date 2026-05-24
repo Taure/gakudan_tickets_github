@@ -1,0 +1,13 @@
+_build/
+.rebar3/
+rebar3.crashdump
+ebin/
+deps/
+*.beam
+erl_crash.dump
+log/
+logs/
+.idea/
+.vscode/
+*.swp
+CLAUDE.md

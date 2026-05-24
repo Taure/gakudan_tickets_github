@@ -1,0 +1,10 @@
+{application, gakudan_tickets_github, [
+    {description, "GitHub Issues adapter for gakudan_tickets"},
+    {vsn, "git"},
+    {registered, []},
+    {applications, [kernel, stdlib, crypto, inets, ssl, gakudan_tickets]},
+    {env, []},
+    {modules, []},
+    {licenses, ["MIT"]},
+    {links, [{"GitHub", "https://github.com/Taure/gakudan_tickets_github"}]}
+]}.

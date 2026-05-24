@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+
+jobs:
+  ci:
+    uses: Taure/erlang-ci/.github/workflows/ci.yml@v2.1.1
+    permissions:
+      contents: write
+      pull-requests: write
+    with:
+      version-file: '.tool-versions'
+      enable-ct: true
+      enable-ex-doc: true
+      enable-hank: true
+      # rebar3_audit currently crashes on git deps. Re-enable when
+      # gakudan_tickets is published to Hex (or rebar3_audit learns
+      # to skip git deps gracefully).
+      enable-audit: false
+      enable-coverage: true
+      enable-elp-lint: true
+      enable-elp-eqwalize: false
+      enable-sbom: true
+      enable-sbom-scan: true
+      enable-dependency-submission: true
+      enable-summary: true
