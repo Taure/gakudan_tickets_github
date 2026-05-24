@@ -23,7 +23,10 @@ jobs:
       enable-ct: true
       enable-ex-doc: true
       enable-hank: true
-      enable-audit: true
+      # rebar3_audit currently crashes on git deps. Re-enable when
+      # gakudan_tickets is published to Hex (or rebar3_audit learns
+      # to skip git deps gracefully).
+      enable-audit: false
       enable-coverage: true
       enable-elp-lint: true
       enable-elp-eqwalize: false
