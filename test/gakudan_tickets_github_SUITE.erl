@@ -18,6 +18,7 @@
     verify_signature_rejects_missing_prefix/1,
     build_search_url_scopes_to_repo/1,
     source_carries_required_fields/1,
+    source_with_app_config_carries_app_field/1,
     transition_rejects_unsupported_state/1
 ]).
 
@@ -37,6 +38,7 @@ all() ->
         verify_signature_rejects_missing_prefix,
         build_search_url_scopes_to_repo,
         source_carries_required_fields,
+        source_with_app_config_carries_app_field,
         transition_rejects_unsupported_state
     ].
 
@@ -213,6 +215,25 @@ source_carries_required_fields(_Config) ->
     ?assertEqual(~"gakudan", maps:get(repo, Ref)),
     ?assertEqual(~"sometoken", maps:get(token, Ref)),
     ?assertEqual(~"https://api.github.com", maps:get(base_url, Ref)).
+
+source_with_app_config_carries_app_field(_Config) ->
+    Ref = gakudan_tickets_github:source(#{
+        owner => ~"Taure",
+        repo => ~"gakudan",
+        app => #{
+            app_id => 12345,
+            private_key_pem =>
+                ~"-----BEGIN RSA PRIVATE KEY-----\nstub\n-----END RSA PRIVATE KEY-----\n",
+            installation_id => 67890
+        }
+    }),
+    ?assertEqual(~"Taure", maps:get(owner, Ref)),
+    ?assertEqual(~"gakudan", maps:get(repo, Ref)),
+    ?assertNot(maps:is_key(token, Ref)),
+    ?assert(maps:is_key(app, Ref)),
+    AppCfg = maps:get(app, Ref),
+    ?assertEqual(12345, maps:get(app_id, AppCfg)),
+    ?assertEqual(67890, maps:get(installation_id, AppCfg)).
 
 %% --- transition rejects bad input ---
 

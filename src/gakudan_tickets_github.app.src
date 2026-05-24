@@ -1,8 +1,9 @@
 {application, gakudan_tickets_github, [
     {description, "GitHub Issues adapter for gakudan_tickets"},
     {vsn, "git"},
-    {registered, []},
-    {applications, [kernel, stdlib, crypto, inets, ssl, gakudan_tickets]},
+    {registered, [gakudan_tickets_github_sup, gakudan_tickets_github_token_cache]},
+    {mod, {gakudan_tickets_github_app, []}},
+    {applications, [kernel, stdlib, crypto, inets, ssl, public_key, gakudan_tickets]},
     {env, []},
     {modules, []},
     {licenses, ["MIT"]},
