@@ -1,0 +1,4 @@
+[{<<"gakudan_tickets">>,
+  {git,"https://github.com/Taure/gakudan_tickets.git",
+       {ref,"21089dc9a78369f27c936531fccc9e5e79e712ef"}},
+  0}].
