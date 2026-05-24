@@ -3,21 +3,46 @@
 GitHub Issues adapter for [gakudan_tickets](https://github.com/Taure/gakudan_tickets).
 
 Implements the `gakudan_tickets` behaviour against GitHub's REST API
-(v2022-11-28). Reads + writes a single repo at a time; a `source_ref()`
-is a map carrying `owner`, `repo`, and a Personal Access Token.
+(v2022-11-28). Reads + writes a single repo at a time.
 
 ## Auth
 
-Personal Access Token only in v0.1. GitHub Apps + installation tokens
-are a planned addition.
+Two modes are supported:
+
+### Personal Access Token
 
 ```erlang
 Ref = gakudan_tickets_github:source(#{
     owner => ~"Taure",
     repo  => ~"gakudan",
-    token => os:getenv("GITHUB_TOKEN")
+    token => list_to_binary(os:getenv("GITHUB_TOKEN"))
 }).
 ```
+
+Simplest setup. Posts appear as the user who minted the PAT. Fine for
+single-maintainer dog-fooding.
+
+### GitHub App
+
+```erlang
+Ref = gakudan_tickets_github:source(#{
+    owner => ~"Taure",
+    repo  => ~"gakudan",
+    app   => #{
+        app_id          => 123456,
+        private_key_pem => read_pem("triagebot.pem"),
+        installation_id => 7891011
+    }
+}).
+```
+
+Posts appear as the App's bot account (`@<app-name>[bot]`). Installation
+tokens are fetched on first use and cached until shortly before expiry
+(5-minute refresh buffer) by the `gakudan_tickets_github_token_cache`
+gen_server, which is started automatically when the OTP application starts.
+
+Add `gakudan_tickets_github` to your application's `applications` list so
+the cache is up and ready when you start making calls.
 
 ## Webhooks
 
@@ -55,8 +80,20 @@ query to the configured owner/repo automatically, so a caller passing
 
 %% --- public ---
 
--doc "Build a `source_ref()` for one repository.".
+-doc """
+Build a `source_ref()` for one repository.
+
+Accepts either Personal Access Token auth (`token`) or GitHub App auth
+(`app`) - see the module docs for the shapes.
+""".
 -spec source(map()) -> gakudan_tickets:source_ref().
+source(#{owner := O, repo := R, app := App} = Opts) when is_map(App) ->
+    #{
+        owner => O,
+        repo => R,
+        app => App,
+        base_url => maps:get(base_url, Opts, ?DEFAULT_BASE_URL)
+    };
 source(#{owner := O, repo := R, token := T} = Opts) ->
     #{
         owner => O,
@@ -219,7 +256,20 @@ to_bin(B) when is_binary(B) -> B;
 to_bin(I) when is_integer(I) -> integer_to_binary(I);
 to_bin(L) when is_list(L) -> iolist_to_binary(L).
 
-http(Method, Url, #{token := Token}, Body) ->
+http(Method, Url, Ref, Body) ->
+    case resolve_token(Ref) of
+        {ok, Token} -> do_http(Method, Url, Token, Body);
+        {error, _} = Err -> Err
+    end.
+
+resolve_token(#{token := T}) ->
+    {ok, T};
+resolve_token(#{app := App}) ->
+    gakudan_tickets_github_token_cache:get_token(App);
+resolve_token(_) ->
+    {error, no_auth}.
+
+do_http(Method, Url, Token, Body) ->
     ok = ensure_inets(),
     Headers = [
         {"authorization", "Bearer " ++ binary_to_list(Token)},
