@@ -71,8 +71,15 @@ query to the configured owner/repo automatically, so a caller passing
 -behaviour(gakudan_tickets).
 
 -export([fetch/2, search/2, post_comment/3, apply_labels/3, transition/3]).
--export([source/1]).
--export([parse_issue/1, parse_webhook/2, verify_signature/3, build_search_url/2]).
+-export([source/1, get_file/2, get_file/3, list_labels/1]).
+-export([
+    parse_issue/1,
+    parse_webhook/2,
+    verify_signature/3,
+    build_search_url/2,
+    parse_file_contents/1,
+    parse_labels_response/1
+]).
 
 -define(DEFAULT_BASE_URL, ~"https://api.github.com").
 -define(DEFAULT_TIMEOUT, 30_000).
@@ -149,7 +156,99 @@ transition(#{owner := O, repo := R} = Ref, Id, State) when
 transition(_, _, State) ->
     {error, {unsupported_state, State}}.
 
+%% --- extra reads (not part of the gakudan_tickets behaviour) ---
+
+-doc """
+Fetch a file from the repo's default branch.
+
+Returns the raw file contents as a binary. For files larger than
+GitHub's inline-content limit (~1 MB) returns `{error, too_large}`;
+the caller can fall back to the `download_url` from the raw JSON. For
+directories returns `{error, is_directory}`.
+""".
+-spec get_file(map(), binary() | string()) -> {ok, binary()} | {error, term()}.
+get_file(Ref, Path) ->
+    get_file(Ref, Path, undefined).
+
+-doc """
+Fetch a file at a specific git ref (branch, tag, or commit SHA).
+
+Pass `undefined` for `Ref` to use the repo's default branch.
+""".
+-spec get_file(map(), binary() | string(), binary() | string() | undefined) ->
+    {ok, binary()} | {error, term()}.
+get_file(#{owner := O, repo := R} = Ref, Path, GitRef) when
+    is_binary(Path) orelse is_list(Path)
+->
+    Url0 = url(Ref, ["/repos/", O, "/", R, "/contents/", Path]),
+    Url =
+        case GitRef of
+            undefined -> Url0;
+            _ -> Url0 ++ "?ref=" ++ to_str(GitRef)
+        end,
+    case http(get, Url, Ref, undefined) of
+        {ok, Json} -> parse_file_contents(Json);
+        {error, {http_error, 404, _}} -> {error, not_found};
+        Err -> Err
+    end.
+
+-doc """
+List all labels defined on the repo.
+
+Returns the labels as a list of `#{name, description, color}` maps.
+Pagination is **not** followed in v0.1 — the first page (up to 100
+labels, GitHub's per_page max) is returned.
+""".
+-spec list_labels(map()) ->
+    {ok, [#{name := binary(), description := binary(), color := binary()}]}
+    | {error, term()}.
+list_labels(#{owner := O, repo := R} = Ref) ->
+    Url = url(Ref, ["/repos/", O, "/", R, "/labels?per_page=100"]),
+    case http(get, Url, Ref, undefined) of
+        {ok, Labels} when is_list(Labels) -> {ok, parse_labels_response(Labels)};
+        {error, _} = Err -> Err;
+        Other -> {error, {unexpected_response, Other}}
+    end.
+
 %% --- pure helpers (exported for testing) ---
+
+-doc """
+Decode a GitHub "Get repository content" JSON response into the raw
+file bytes. Used internally by `get_file/2,3` and exposed for tests.
+""".
+-spec parse_file_contents(map() | list()) -> {ok, binary()} | {error, term()}.
+parse_file_contents(L) when is_list(L) ->
+    {error, is_directory};
+parse_file_contents(#{~"type" := ~"dir"}) ->
+    {error, is_directory};
+parse_file_contents(#{~"encoding" := ~"base64", ~"content" := Encoded}) when is_binary(Encoded) ->
+    Stripped = binary:replace(Encoded, ~"\n", ~"", [global]),
+    try
+        {ok, base64:decode(Stripped)}
+    catch
+        _:Reason -> {error, {bad_base64, Reason}}
+    end;
+parse_file_contents(#{~"encoding" := ~"none"}) ->
+    {error, too_large};
+parse_file_contents(_) ->
+    {error, unexpected_shape}.
+
+-doc """
+Normalise a "List repository labels" response into a list of
+`#{name, description, color}` maps. Used internally by `list_labels/1`
+and exposed for tests.
+""".
+-spec parse_labels_response([map()]) ->
+    [#{name := binary(), description := binary(), color := binary()}].
+parse_labels_response(Labels) ->
+    [
+        #{
+            name => default_binary(maps:get(~"name", L, ~"")),
+            description => default_binary(maps:get(~"description", L, ~"")),
+            color => default_binary(maps:get(~"color", L, ~""))
+        }
+     || L <- Labels
+    ].
 
 -doc "Normalise a GitHub Issue JSON object into a gakudan_tickets:ticket().".
 -spec parse_issue(map()) -> gakudan_tickets:ticket().
@@ -255,6 +354,9 @@ url(#{base_url := Base}, Parts) ->
 to_bin(B) when is_binary(B) -> B;
 to_bin(I) when is_integer(I) -> integer_to_binary(I);
 to_bin(L) when is_list(L) -> iolist_to_binary(L).
+
+to_str(B) when is_binary(B) -> binary_to_list(B);
+to_str(L) when is_list(L) -> L.
 
 http(Method, Url, Ref, Body) ->
     case resolve_token(Ref) of

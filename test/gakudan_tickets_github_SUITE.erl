@@ -19,7 +19,14 @@
     build_search_url_scopes_to_repo/1,
     source_carries_required_fields/1,
     source_with_app_config_carries_app_field/1,
-    transition_rejects_unsupported_state/1
+    transition_rejects_unsupported_state/1,
+    parse_file_contents_decodes_base64/1,
+    parse_file_contents_strips_newlines_from_base64/1,
+    parse_file_contents_rejects_directory_listing/1,
+    parse_file_contents_rejects_too_large_file/1,
+    parse_file_contents_rejects_unknown_shape/1,
+    parse_labels_response_normalises_each_label/1,
+    parse_labels_response_handles_null_description/1
 ]).
 
 all() ->
@@ -39,7 +46,14 @@ all() ->
         build_search_url_scopes_to_repo,
         source_carries_required_fields,
         source_with_app_config_carries_app_field,
-        transition_rejects_unsupported_state
+        transition_rejects_unsupported_state,
+        parse_file_contents_decodes_base64,
+        parse_file_contents_strips_newlines_from_base64,
+        parse_file_contents_rejects_directory_listing,
+        parse_file_contents_rejects_too_large_file,
+        parse_file_contents_rejects_unknown_shape,
+        parse_labels_response_normalises_each_label,
+        parse_labels_response_handles_null_description
     ].
 
 %% --- parse_issue ---
@@ -246,8 +260,89 @@ transition_rejects_unsupported_state(_Config) ->
     {error, {unsupported_state, in_progress}} =
         gakudan_tickets_github:transition(Ref, ~"1", in_progress).
 
+%% --- parse_file_contents ---
+
+parse_file_contents_decodes_base64(_Config) ->
+    Original = ~"hello world\n",
+    Encoded = base64:encode(Original),
+    Response = #{
+        ~"type" => ~"file",
+        ~"encoding" => ~"base64",
+        ~"content" => Encoded
+    },
+    {ok, Original} = gakudan_tickets_github:parse_file_contents(Response).
+
+parse_file_contents_strips_newlines_from_base64(_Config) ->
+    Original = binary:copy(~"abcdefgh", 20),
+    EncodedFlat = base64:encode(Original),
+    EncodedWrapped = wrap_every_n(EncodedFlat, 60),
+    ?assertNotEqual(EncodedFlat, EncodedWrapped),
+    Response = #{
+        ~"type" => ~"file",
+        ~"encoding" => ~"base64",
+        ~"content" => EncodedWrapped
+    },
+    {ok, Original} = gakudan_tickets_github:parse_file_contents(Response).
+
+parse_file_contents_rejects_directory_listing(_Config) ->
+    {error, is_directory} = gakudan_tickets_github:parse_file_contents([
+        #{~"type" => ~"file", ~"name" => ~"a.txt"},
+        #{~"type" => ~"file", ~"name" => ~"b.txt"}
+    ]),
+    {error, is_directory} = gakudan_tickets_github:parse_file_contents(#{
+        ~"type" => ~"dir",
+        ~"name" => ~"docs"
+    }).
+
+parse_file_contents_rejects_too_large_file(_Config) ->
+    Response = #{
+        ~"type" => ~"file",
+        ~"encoding" => ~"none",
+        ~"size" => 5_000_000,
+        ~"download_url" => ~"https://raw.githubusercontent.com/x/y/main/big"
+    },
+    {error, too_large} = gakudan_tickets_github:parse_file_contents(Response).
+
+parse_file_contents_rejects_unknown_shape(_Config) ->
+    {error, unexpected_shape} = gakudan_tickets_github:parse_file_contents(#{
+        ~"type" => ~"submodule"
+    }).
+
+%% --- parse_labels_response ---
+
+parse_labels_response_normalises_each_label(_Config) ->
+    Raw = [
+        #{~"name" => ~"bug", ~"description" => ~"It broke", ~"color" => ~"d73a4a"},
+        #{~"name" => ~"docs", ~"description" => ~"Docs only", ~"color" => ~"0075ca"}
+    ],
+    [Bug, Docs] = gakudan_tickets_github:parse_labels_response(Raw),
+    ?assertEqual(~"bug", maps:get(name, Bug)),
+    ?assertEqual(~"It broke", maps:get(description, Bug)),
+    ?assertEqual(~"d73a4a", maps:get(color, Bug)),
+    ?assertEqual(~"docs", maps:get(name, Docs)).
+
+parse_labels_response_handles_null_description(_Config) ->
+    Raw = [
+        #{~"name" => ~"wontfix", ~"description" => null, ~"color" => ~"ffffff"}
+    ],
+    [L] = gakudan_tickets_github:parse_labels_response(Raw),
+    ?assertEqual(~"wontfix", maps:get(name, L)),
+    ?assertEqual(~"", maps:get(description, L)).
+
 %% --- helpers ---
 
 hmac_sha256_hex(Secret, Body) ->
     Hash = crypto:mac(hmac, sha256, Secret, Body),
     iolist_to_binary([io_lib:format("~2.16.0b", [B]) || <<B>> <= Hash]).
+
+wrap_every_n(Bin, N) when is_binary(Bin), is_integer(N), N > 0 ->
+    wrap_every_n(Bin, N, []).
+
+wrap_every_n(<<>>, _N, Acc) ->
+    iolist_to_binary(lists:reverse(Acc));
+wrap_every_n(Bin, N, Acc) when byte_size(Bin) =< N ->
+    iolist_to_binary(lists:reverse([Bin | Acc]));
+wrap_every_n(Bin, N, Acc) ->
+    Chunk = binary:part(Bin, 0, N),
+    Rest = binary:part(Bin, N, byte_size(Bin) - N),
+    wrap_every_n(Rest, N, [~"\n", Chunk | Acc]).
