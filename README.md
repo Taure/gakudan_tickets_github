@@ -79,10 +79,44 @@ model). Any other atom returns `{error, {unsupported_state, _}}`.
 
 ## Auth
 
-Personal Access Token only in v0.1. GitHub App + installation tokens are
-a planned addition.
+Two modes are supported.
 
-The token needs `issues:write` to apply labels / post comments / transition.
+### Personal Access Token
+
+```erlang
+Ref = gakudan_tickets_github:source(#{
+    owner => ~"Taure",
+    repo  => ~"gakudan",
+    token => list_to_binary(os:getenv("GITHUB_TOKEN"))
+}).
+```
+
+Simplest setup. Posts appear as the user who minted the PAT. Fine for
+single-maintainer dog-fooding.
+
+### GitHub App / installation tokens
+
+```erlang
+Ref = gakudan_tickets_github:source(#{
+    owner => ~"Taure",
+    repo  => ~"gakudan",
+    app   => #{
+        app_id          => 123456,
+        private_key_pem => read_pem("triagebot.pem"),
+        installation_id => 7891011
+    }
+}).
+```
+
+Posts appear as the App's bot account (`@<app-name>[bot]`). Installation
+tokens are fetched on first use and cached until shortly before expiry
+(5-minute refresh buffer) by the `gakudan_tickets_github_token_cache`
+gen_server, started automatically when the OTP application starts. Add
+`gakudan_tickets_github` to your application's `applications` list so the
+cache is ready before you make calls.
+
+Either way the resolved token needs `issues:write` to apply labels / post
+comments / transition.
 
 ## What it normalises into
 
