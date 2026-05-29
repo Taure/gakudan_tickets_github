@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Taure/gakudan_tickets_github/actions/workflows/ci.yml/badge.svg)](https://github.com/Taure/gakudan_tickets_github/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/Taure/gakudan_tickets_github)](LICENSE)
-[![Erlang](https://img.shields.io/badge/erlang-28%2B-blue)](.tool-versions)
+[![Erlang](https://img.shields.io/badge/erlang-29%2B-blue)](.tool-versions)
 
 GitHub Issues adapter for [gakudan_tickets](https://github.com/Taure/gakudan_tickets).
 
