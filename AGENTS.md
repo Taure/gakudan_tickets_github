@@ -27,7 +27,7 @@ verification).
 
 ## Conventions
 
-- OTP 28+. The `~"..."` sigil, never `<<"...">>`. No `lists:foldl/foldr`.
+- OTP 29+. The `~"..."` sigil, never `<<"...">>`. No `lists:foldl/foldr`.
 - JSON via the OTP `json` module. `?LOG_*` macros with `#{...}` map reports.
 - Docs: OTP `-moduledoc` / `-doc`. `{vsn, "git"}` - version derives from git tags.
 - Default to zero comments; comment only non-obvious *why*.
