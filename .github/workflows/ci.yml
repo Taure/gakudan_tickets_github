@@ -28,9 +28,13 @@ jobs:
       # to skip git deps gracefully).
       enable-audit: false
       enable-coverage: true
-      enable-elp-lint: true
+      # ELP has no OTP 29 binary yet (matches the pillar repos); re-enable when
+      # WhatsApp/erlang-language-platform ships an OTP 29 build.
+      enable-elp-lint: false
       enable-elp-eqwalize: false
       enable-sbom: true
       enable-sbom-scan: true
-      enable-dependency-submission: true
+      # rebar3-dependency-submission crashes on git deps (the gakudan_tickets
+      # {ref,...} lock entry); disabled until the tool handles git deps. See #7.
+      enable-dependency-submission: false
       enable-summary: true
