@@ -12,7 +12,11 @@ https://github.com/Taure):
 - **[saiten](https://github.com/Taure/saiten)** - runtime-agnostic eval/scoring
   + CI gate.
 - **[madoguchi](https://github.com/Taure/madoguchi)** - MCP *server* framework.
-- **[sekisho](https://github.com/Taure/sekisho)** - LLM gateway / control plane.
+- **[sekisho](https://github.com/Taure/sekisho)** - LLM gateway / control plane
+  (virtual keys, budgets, audit; Anthropic + OpenAI chat + embeddings + Vertex).
+- **[bunko](https://github.com/Taure/bunko)** - agent memory + RAG (pgvector).
+- **[banto](https://github.com/Taure/banto)** - multi-agent repo concierge; the
+  showcase consumer wiring the pillars together.
 
 Other gakudan sisters: gakudan_metrics, gakudan_otel, gakudan_liveboard.
 
@@ -23,7 +27,7 @@ verification).
 
 ## Conventions
 
-- OTP 29+. The `~"..."` sigil, never `<<"...">>`. No `lists:foldl/foldr`.
+- OTP 28+. The `~"..."` sigil, never `<<"...">>`. No `lists:foldl/foldr`.
 - JSON via the OTP `json` module. `?LOG_*` macros with `#{...}` map reports.
 - Docs: OTP `-moduledoc` / `-doc`. `{vsn, "git"}` - version derives from git tags.
 - Default to zero comments; comment only non-obvious *why*.
